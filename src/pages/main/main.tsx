@@ -82,7 +82,7 @@ const AppWrapper = observer(() => {
     const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'free_bots', 'chart', 'tutorial', 'analysis'];
+    const hash = ['dashboard', 'bot_builder', 'free_bots', 'chart', 'analysis', 'tutorial'];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -450,6 +450,21 @@ const AppWrapper = observer(() => {
                             <div
                                 label={
                                     <>
+                                        <LabelPairedMagnifyingGlassPlusCaptionRegularIcon
+                                            height='24px'
+                                            width='24px'
+                                            fill='var(--text-general)'
+                                        />
+                                        <Localize i18n_default_text='Calculator' />
+                                    </>
+                                }
+                                id='id-analysis'
+                            >
+                                <AnalysisTools />
+                            </div>
+                            <div
+                                label={
+                                    <>
                                         <LegacyGuide1pxIcon
                                             height='16px'
                                             width='16px'
@@ -470,21 +485,6 @@ const AppWrapper = observer(() => {
                                         <Tutorial handleTabChange={handleTabChange} />
                                     </Suspense>
                                 </div>
-                            </div>
-                            <div
-                                label={
-                                    <>
-                                        <LabelPairedMagnifyingGlassPlusCaptionRegularIcon
-                                            height='24px'
-                                            width='24px'
-                                            fill='var(--text-general)'
-                                        />
-                                        <Localize i18n_default_text='Calculator' />
-                                    </>
-                                }
-                                id='id-analysis'
-                            >
-                                <AnalysisTools />
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
