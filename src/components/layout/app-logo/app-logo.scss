@@ -1,3 +1,35 @@
+@keyframes logo-gold-shimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes logo-pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgb(247 197 59 / 45%), 0 0 12px rgb(247 197 59 / 20%); }
+    70% { box-shadow: 0 0 0 8px rgb(247 197 59 / 0%), 0 0 20px rgb(247 197 59 / 30%); }
+    100% { box-shadow: 0 0 0 0 rgb(247 197 59 / 0%), 0 0 12px rgb(247 197 59 / 20%); }
+}
+
+@keyframes logo-float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-2px); }
+}
+
+@keyframes logo-img-shine {
+    0% { transform: translateX(-120%) skewX(-15deg); }
+    100% { transform: translateX(220%) skewX(-15deg); }
+}
+
+@keyframes logo-badge-spin-glow {
+    0%, 100% { box-shadow: 0 0 6px rgb(247 197 59 / 50%), inset 0 0 6px rgb(247 197 59 / 20%); }
+    50% { box-shadow: 0 0 18px rgb(247 197 59 / 80%), inset 0 0 10px rgb(247 197 59 / 30%); }
+}
+
+@keyframes text-char-flicker {
+    0%, 90%, 100% { opacity: 1; }
+    95% { opacity: 0.7; }
+}
+
 .app-header {
     &__logo {
         padding-inline-start: 1.6rem;
@@ -6,49 +38,109 @@
         display: flex;
         align-items: center;
         text-decoration: none;
+
+        &:hover {
+            .app-header__logo-mark {
+                .app-header__logo-img {
+                    &::after {
+                        animation: logo-img-shine 0.7s ease forwards;
+                    }
+                }
+            }
+        }
     }
 
-    // Logo + app name mark (shared by the header and the mobile drawer).
     &__logo-mark {
         display: flex;
         align-items: center;
         min-width: 0;
+        animation: logo-float 3s ease-in-out infinite;
+    }
+
+    &__logo-img-wrapper {
+        position: relative;
+        overflow: hidden;
+        border-radius: 10px;
+        animation: logo-pulse-ring 2.5s ease-out infinite;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+
+        &::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(105deg, transparent 0%, rgb(255 255 255 / 35%) 50%, transparent 100%);
+            transform: translateX(-120%) skewX(-15deg);
+            pointer-events: none;
+        }
+
+        &:hover::after {
+            animation: logo-img-shine 0.7s ease forwards;
+        }
     }
 
     &__logo-img {
         width: auto;
         max-width: 160px;
         object-fit: contain;
+        border-radius: 10px;
+        filter: drop-shadow(0 0 6px rgb(247 197 59 / 40%));
+        transition: filter 0.3s ease;
+
+        &:hover {
+            filter: drop-shadow(0 0 14px rgb(247 197 59 / 70%));
+        }
     }
 
-    // Letter-badge fallback shown when no logo file/data URL is available.
     &__logo-badge {
         display: flex;
         align-items: center;
         justify-content: center;
         flex: none;
-        border-radius: 0.8rem;
-        background: color-mix(in srgb, var(--brand-primary, var(--text-general)) 10%, transparent);
-        color: var(--brand-primary, var(--text-general));
-        font-weight: 700;
-        font-size: 1.4rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #f7c53b 0%, #f7a800 50%, #ffe082 100%);
+        color: #0f172a;
+        font-weight: 900;
+        font-size: 1.6rem;
         line-height: 1;
+        animation: logo-badge-spin-glow 2.5s ease-in-out infinite;
+        border: 2px solid rgb(247 197 59 / 50%);
+        text-shadow: none;
     }
 
     &__logo-text {
         margin-left: 1.2rem;
-        color: var(--text-general);
-        font-weight: 600;
-        font-size: 1.8rem;
+        font-weight: 900;
+        font-size: 1.9rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 220px;
+        letter-spacing: 0.06em;
+
+        background: linear-gradient(
+            90deg,
+            #b8860b 0%,
+            #f7c53b 20%,
+            #ffe082 40%,
+            #f7a800 55%,
+            #ffd700 70%,
+            #f7c53b 85%,
+            #b8860b 100%
+        );
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: logo-gold-shimmer 2.8s linear infinite;
+
+        filter: drop-shadow(0 0 8px rgb(247 197 59 / 60%));
     }
 
-    // On mobile the mark sits next to the hamburger and the account section, so
-    // tighten the padding and show the logo only — the app name is desktop-only
-    // here to avoid crowding. (The mobile drawer header still shows the name.)
     &--mobile {
         .app-header__logo {
             padding-inline-start: 0.8rem;
@@ -61,8 +153,6 @@
     }
 }
 
-// The same mark inside the mobile drawer header shows the app name (the header's
-// --mobile rule hides it, but the drawer has room) and can use the full available width.
 .mobile-menu__header .app-header__logo-text {
     display: block;
     max-width: 180px;
