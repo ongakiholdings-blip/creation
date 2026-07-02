@@ -141,6 +141,14 @@ const FREE_BOTS = [
         category: 'Automated' as BotCategory,
         difficulty: 'Intermediate',
     },
+    {
+        id: 'frosty_digit_eliminator',
+        xml_file: 'frosty_digit_eliminator',
+        name: 'Frosty Digit Eliminator',
+        description: 'A Matches/Differs strategy that prompts for a digit to avoid, with martingale recovery and configurable profit and loss targets.',
+        category: 'Differs' as BotCategory,
+        difficulty: 'Advanced',
+    },
 ];
 
 const DIFFICULTY_COLORS: Record<string, string> = {
