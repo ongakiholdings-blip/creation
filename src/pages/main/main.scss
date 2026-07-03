@@ -108,6 +108,8 @@
                 @include mobile-or-tablet-screen {
                     overflow-x: auto;
                     overflow-y: hidden;
+                    justify-content: flex-start;
+                    flex-wrap: nowrap;
                     -ms-overflow-style: none;
                     scrollbar-width: none;
 
@@ -189,6 +191,13 @@
                 overflow: hidden;
 
                 @include flex-center;
+
+                @include mobile-or-tablet-screen {
+                    flex-shrink: 0;
+                    min-width: max-content;
+                    overflow: visible;
+                    padding: 0 1.4rem;
+                }
 
                 @media (max-width: 1200px) {
                     padding: 0 1rem;
