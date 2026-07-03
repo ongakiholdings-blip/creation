@@ -3,9 +3,9 @@
   "outputDirectory": "dist",
   "redirects": [
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "has": [{ "type": "host", "value": "frostydbot.site" }],
-      "destination": "https://www.frostydbot.site/$1",
+      "destination": "https://www.frostydbot.site/:path*",
       "permanent": true
     }
   ],

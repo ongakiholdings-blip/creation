@@ -77,15 +77,36 @@ function App() {
 
     React.useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
+
+        // Deriv sends ?error=... when it rejects the OAuth request (e.g. redirect_uri
+        // mismatch, country restriction, cancelled login). Surface this immediately so
+        // it's visible rather than a silent failure.
+        if (urlParams.has('error')) {
+            const oauthError = urlParams.get('error');
+            const oauthErrorDesc = urlParams.get('error_description') || '';
+            console.error('[OAuth] Deriv returned an error during login:', oauthError, oauthErrorDesc);
+            // Show a user-visible alert so the problem is obvious, then clean up the URL.
+            window.alert(
+                `Login failed — Deriv returned an error:\n\n${oauthError}\n${oauthErrorDesc}\n\nCheck that your app's redirect URI is registered correctly in the Deriv developer dashboard.`
+            );
+            cleanupUrl(window.location.origin);
+            return;
+        }
+
         if (!urlParams.has('code')) return;
+
+        const redirectUri = window.location.origin;
+        console.log('[OAuth] Handling callback. redirect_uri used:', redirectUri);
 
         const handleCallback = async () => {
             try {
                 const authInfo = await handleOAuthCallback(window.location.href, {
                     clientId: process.env.NEXT_PUBLIC_DERIV_APP_ID || '',
-                    redirectUri: window.location.origin,
+                    redirectUri,
                     scopes: 'trade',
                 });
+
+                console.log('[OAuth] Token exchange succeeded. Fetching accounts...');
 
                 const { DerivWSAccountsService } = await import('@/services/derivws-accounts.service');
                 const accounts = await DerivWSAccountsService.fetchAccountsList(authInfo.access_token);
@@ -101,10 +122,13 @@ function App() {
                     const { api_base } = await import('@/external/bot-skeleton');
                     await api_base.init(true);
                 } else {
-                    console.error('No accounts returned after authentication');
+                    console.error('[OAuth] No accounts returned after authentication');
                 }
             } catch (error) {
-                console.error('OAuth callback error:', error);
+                const msg = error instanceof Error ? error.message : String(error);
+                console.error('[OAuth] Callback error:', msg);
+                // Surface the error so it's visible in the UI, not just the console.
+                window.alert(`Login error: ${msg}\n\nOpen the browser console (F12) for details.`);
             } finally {
                 cleanupUrl(window.location.origin);
             }
