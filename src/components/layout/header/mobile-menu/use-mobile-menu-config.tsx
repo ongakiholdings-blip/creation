@@ -7,7 +7,7 @@ import { ToggleSwitch } from '@deriv-com/ui';
 
 // ─── Community / Support Links ───────────────────────────────────────────────
 // Update these URLs to point to your WhatsApp group and Telegram channel.
-const WHATSAPP_LINK = 'https://wa.me/+254700000000'; // ← replace with your WhatsApp link
+const WHATSAPP_LINK = 'https://wa.me/+254115335502';
 const TELEGRAM_LINK = 'https://t.me/frostydbot';      // ← replace with your Telegram link
 // ─────────────────────────────────────────────────────────────────────────────
 
