@@ -65,9 +65,24 @@ Tabs are defined in `src/constants/bot-contents.ts` → `DBOT_TABS` and rendered
 | 0 | Dashboard | id-dbot-dashboard |
 | 1 | Bot Builder | id-bot-builder |
 | 2 | Free Bots | id-free-bots |
-| 3 | Charts | id-charts |
-| 4 | Tutorials | id-tutorials |
-| 5 | Analysis | id-analysis |
+| 3 | D-Circles | id-d-circles |
+| 4 | Analysis Tool | id-analysis-tool |
+| 5 | Charts | id-charts |
+| 6 | Calculator | id-analysis |
+| 7 | Tutorials | id-tutorials |
+| 8 | Copy Trading | id-copy-trading |
+
+## Copy Trading
+
+The Copy Trading tab (`src/pages/copy-trading/`) lets any account mirror trades from a leader account to multiple follower accounts in real time.
+
+- **How it works**: Separate WebSocket connections per account; the leader's `transaction` stream is subscribed, and on each `buy` event the trade is replicated on all followers via `proposal` + `buy` calls.
+- **Demo → real**: Set the leader token to a demo account API token, add real accounts as followers.
+- **Key files**:
+  - `src/services/copy-trading.service.ts` — WebSocket service
+  - `src/stores/copy-trading-store.ts` — MobX store
+  - `src/pages/copy-trading/index.tsx` — UI
+- **API tokens**: Need Read + Trade scopes. Generated at app.deriv.com → API Token. Tokens are stored only in memory (never persisted to localStorage/sessionStorage).
 
 ## Branding
 

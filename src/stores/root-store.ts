@@ -4,6 +4,7 @@ import BlocklyStore from './blockly-store';
 import ChartStore from './chart-store';
 import ClientStore from './client-store';
 import CommonStore from './common-store';
+import CopyTradingStore from './copy-trading-store';
 import DashboardStore from './dashboard-store';
 import DataCollectionStore from './data-collection-store';
 import FlyoutHelpStore from './flyout-help-store';
@@ -36,6 +37,7 @@ export default class RootStore {
     public toolbar: ToolbarStore;
     public toolbox: ToolboxStore;
     public quick_strategy: QuickStrategyStore;
+    public copy_trading: CopyTradingStore;
 
     public dashboard: DashboardStore;
 
@@ -77,6 +79,7 @@ export default class RootStore {
         this.toolbar = new ToolbarStore(this);
         this.toolbox = new ToolboxStore(this, this.core);
         this.quick_strategy = new QuickStrategyStore(this);
+        this.copy_trading = new CopyTradingStore();
 
         this.dashboard = new DashboardStore(this, this.core);
 

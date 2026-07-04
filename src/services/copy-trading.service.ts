@@ -1,0 +1,356 @@
+/**
+ * Copy Trading Service
+ *
+ * Opens independent WebSocket connections for the leader and each follower,
+ * listens to the leader's `transaction` stream, and replicates every `buy`
+ * event on all connected follower accounts.
+ *
+ * Also supports demo → real copying: just set the leader token to a demo
+ * account API token and add real-account tokens as followers.
+ */
+import DerivAPIBasic from '@deriv/deriv-api/dist/DerivAPIBasic';
+
+// ─── types ──────────────────────────────────────────────────────────────────
+
+export type CopyAccount = {
+    token: string;
+    loginid: string;
+    balance: number;
+    currency: string;
+    is_virtual: boolean;
+};
+
+export type CopyTradeResult = {
+    follower_loginid: string;
+    /** Redacted token suffix for display only — never the full token. */
+    follower_token_hint: string;
+    contract_id?: number;
+    buy_price?: number;
+    error?: string;
+    timestamp: number;
+};
+
+export type CopyTradeLog = {
+    id: string;
+    leader_loginid: string;
+    leader_contract_id: number;
+    symbol: string;
+    contract_type: string;
+    duration: number;
+    duration_unit: string;
+    stake: number;
+    currency: string;
+    timestamp: number;
+    results: CopyTradeResult[];
+};
+
+type OnTradeCallback = (log: CopyTradeLog) => void;
+type OnErrorCallback = (msg: string) => void;
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || '36544';
+const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+
+let _logIdCounter = 0;
+const nextLogId = () => `ct-${Date.now()}-${++_logIdCounter}`;
+
+async function createConnection(
+    token: string,
+    onDisconnect?: (loginid: string) => void
+): Promise<{
+    api: InstanceType<typeof DerivAPIBasic>;
+    account: CopyAccount;
+    ws: WebSocket;
+}> {
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(WS_URL);
+        const api = new DerivAPIBasic({ connection: ws });
+        let resolved = false;
+
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                ws.close();
+                reject(new Error(`Connection timeout for token ...${token.slice(-4)}`));
+            }
+        }, 15000);
+
+        ws.addEventListener('open', async () => {
+            try {
+                const res: any = await api.authorize(token);
+                clearTimeout(timeout);
+                if (res?.error) {
+                    ws.close();
+                    reject(new Error(res.error.message || 'Authorization failed'));
+                    return;
+                }
+                const auth = res?.authorize;
+                const account: CopyAccount = {
+                    token,
+                    loginid: auth?.loginid ?? '',
+                    balance: auth?.balance ?? 0,
+                    currency: auth?.currency ?? 'USD',
+                    is_virtual: !!auth?.is_virtual,
+                };
+                resolved = true;
+                // Notify on future disconnects
+                ws.addEventListener('close', () => onDisconnect?.(account.loginid));
+                resolve({ api, ws, account });
+            } catch (e: any) {
+                clearTimeout(timeout);
+                ws.close();
+                reject(new Error(e?.message ?? 'Auth error'));
+            }
+        });
+
+        ws.addEventListener('error', () => {
+            if (!resolved) {
+                clearTimeout(timeout);
+                reject(new Error('WebSocket connection error'));
+            }
+        });
+    });
+}
+
+/** Fetch full contract details for a given contract_id from the leader API. */
+async function fetchContractDetails(
+    api: InstanceType<typeof DerivAPIBasic>,
+    contract_id: number
+): Promise<any> {
+    const res: any = await api.send({
+        proposal_open_contract: 1,
+        contract_id,
+    });
+    return res?.proposal_open_contract ?? null;
+}
+
+/** Get a proposal on a follower connection, then buy it. */
+async function replicateTrade(
+    followerApi: InstanceType<typeof DerivAPIBasic>,
+    params: {
+        contract_type: string;
+        symbol: string;
+        duration: number;
+        duration_unit: string;
+        amount: number;
+        currency: string;
+        basis: string;
+        barrier?: string;
+        barrier2?: string;
+    }
+): Promise<{ contract_id: number; buy_price: number }> {
+    const proposalReq: any = {
+        proposal: 1,
+        amount: params.amount,
+        basis: params.basis,
+        contract_type: params.contract_type,
+        currency: params.currency,
+        duration: params.duration,
+        duration_unit: params.duration_unit,
+        symbol: params.symbol,
+    };
+
+    if (params.barrier !== undefined) proposalReq.barrier = params.barrier;
+    if (params.barrier2 !== undefined) proposalReq.barrier2 = params.barrier2;
+
+    const proposalRes: any = await followerApi.send(proposalReq);
+    if (proposalRes?.error) {
+        throw new Error(proposalRes.error.message || 'Proposal failed');
+    }
+
+    const proposal = proposalRes?.proposal;
+    if (!proposal?.id) throw new Error('Invalid proposal response');
+
+    const buyRes: any = await followerApi.send({
+        buy: proposal.id,
+        price: proposal.ask_price,
+    });
+
+    if (buyRes?.error) throw new Error(buyRes.error.message || 'Buy failed');
+
+    return {
+        contract_id: buyRes?.buy?.contract_id,
+        buy_price: buyRes?.buy?.buy_price,
+    };
+}
+
+// ─── service class ────────────────────────────────────────────────────────────
+
+export class CopyTradingService {
+    private leaderConn: { api: InstanceType<typeof DerivAPIBasic>; ws: WebSocket; account: CopyAccount } | null =
+        null;
+
+    private followerConns: Map<
+        string,
+        { api: InstanceType<typeof DerivAPIBasic>; ws: WebSocket; account: CopyAccount }
+    > = new Map();
+
+    private txSubscription: { unsubscribe: () => void } | null = null;
+
+    private onTrade: OnTradeCallback;
+    private onError: OnErrorCallback;
+
+    /** Multiplier applied to the leader's stake for all followers (1.0 = same stake). */
+    public stakeMultiplier = 1.0;
+
+    constructor(onTrade: OnTradeCallback, onError: OnErrorCallback) {
+        this.onTrade = onTrade;
+        this.onError = onError;
+    }
+
+    // ── public API ─────────────────────────────────────────────────────────
+
+    /** Authorize the leader account. */
+    async connectLeader(token: string, onDisconnect?: (loginid: string) => void): Promise<CopyAccount> {
+        if (this.leaderConn) this.disconnectLeader();
+        const conn = await createConnection(token, onDisconnect);
+        this.leaderConn = conn;
+        return conn.account;
+    }
+
+    /** Authorize a follower account. */
+    async addFollower(token: string, onDisconnect?: (loginid: string) => void): Promise<CopyAccount> {
+        if (this.followerConns.has(token)) {
+            return this.followerConns.get(token)!.account;
+        }
+        const conn = await createConnection(token, onDisconnect);
+        this.followerConns.set(token, conn);
+        return conn.account;
+    }
+
+    /** Disconnect and remove a follower. */
+    removeFollower(token: string) {
+        const conn = this.followerConns.get(token);
+        if (conn) {
+            conn.ws.close();
+            this.followerConns.delete(token);
+        }
+    }
+
+    /** Start listening to the leader's transaction stream and copying trades. */
+    async startCopying() {
+        if (!this.leaderConn) throw new Error('Leader not connected');
+        // Guard: ensure only one subscription active at a time
+        if (this.txSubscription) this.stopCopying();
+
+        // Subscribe to leader's transaction stream
+        await this.leaderConn.api.send({ transaction: 1, subscribe: 1 });
+
+        this.txSubscription = this.leaderConn.api.onMessage().subscribe((raw: any) => {
+            const msg = typeof raw === 'string' ? JSON.parse(raw) : raw?.data ? JSON.parse(raw.data) : raw;
+            if (msg?.msg_type === 'transaction' && msg?.transaction?.action === 'buy') {
+                this.handleLeaderBuy(msg.transaction).catch(e => {
+                    this.onError(`Error replicating trade: ${e?.message ?? e}`);
+                });
+            }
+        });
+    }
+
+    /** Stop copying: unsubscribe from the leader stream and send forget request. */
+    stopCopying() {
+        if (this.txSubscription) {
+            this.txSubscription.unsubscribe();
+            this.txSubscription = null;
+        }
+        // Best-effort server-side unsubscribe
+        if (this.leaderConn?.api) {
+            try {
+                this.leaderConn.api.send({ forget_all: 'transaction' }).catch(() => {});
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    /** Disconnect everything. */
+    destroy() {
+        this.stopCopying();
+        this.disconnectLeader();
+        this.followerConns.forEach(conn => conn.ws.close());
+        this.followerConns.clear();
+    }
+
+    // ── private ────────────────────────────────────────────────────────────
+
+    private disconnectLeader() {
+        if (this.leaderConn) {
+            this.leaderConn.ws.close();
+            this.leaderConn = null;
+        }
+    }
+
+    private async handleLeaderBuy(tx: any) {
+        if (!this.leaderConn) return;
+
+        const contract_id: number = tx.contract_id;
+        if (!contract_id) return;
+
+        // Slight delay so the contract is settled server-side
+        await new Promise(r => setTimeout(r, 500));
+
+        const details = await fetchContractDetails(this.leaderConn.api, contract_id);
+        if (!details) {
+            this.onError(`Could not fetch contract details for id ${contract_id}`);
+            return;
+        }
+
+        const {
+            contract_type,
+            underlying: symbol,
+            duration,
+            duration_unit,
+            buy_price,
+            currency,
+            barrier,
+            barrier2,
+        } = details;
+
+        if (!contract_type || !symbol) {
+            this.onError(`Incomplete contract details for id ${contract_id}`);
+            return;
+        }
+
+        const stake = parseFloat(buy_price ?? '1') * this.stakeMultiplier;
+        const tradeLog: CopyTradeLog = {
+            id: nextLogId(),
+            leader_loginid: this.leaderConn.account.loginid,
+            leader_contract_id: contract_id,
+            symbol,
+            contract_type,
+            duration: duration ?? 1,
+            duration_unit: duration_unit ?? 't',
+            stake,
+            currency: currency ?? 'USD',
+            timestamp: Date.now(),
+            results: [],
+        };
+
+        const copyPromises = Array.from(this.followerConns.entries()).map(async ([token, conn]) => {
+            const result: CopyTradeResult = {
+                follower_loginid: conn.account.loginid,
+                // Keep only a safe hint — never the full token
+                follower_token_hint: `...${token.slice(-4)}`,
+                timestamp: Date.now(),
+            };
+            try {
+                const { contract_id: fCid, buy_price: fBp } = await replicateTrade(conn.api, {
+                    contract_type,
+                    symbol,
+                    duration: duration ?? 1,
+                    duration_unit: duration_unit ?? 't',
+                    amount: stake,
+                    currency: conn.account.currency,
+                    basis: 'stake',
+                    barrier,
+                    barrier2,
+                });
+                result.contract_id = fCid;
+                result.buy_price = fBp;
+            } catch (e: any) {
+                result.error = e?.message ?? 'Unknown error';
+            }
+            return result;
+        });
+
+        tradeLog.results = await Promise.all(copyPromises);
+        this.onTrade(tradeLog);
+    }
+}
