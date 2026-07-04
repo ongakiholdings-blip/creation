@@ -39,6 +39,7 @@ import {
     LabelPairedCircleCaptionRegularIcon,
     LabelPairedBarsCaptionRegularIcon,
     LabelPairedCopyCaptionRegularIcon,
+    LabelPairedChartCandlestickCaptionRegularIcon,
 } from '@deriv/quill-icons/LabelPaired';
 import { LegacyGuide1pxIcon } from '@deriv/quill-icons/Legacy';
 import { Localize, localize } from '@deriv-com/translations';
@@ -86,7 +87,7 @@ const AppWrapper = observer(() => {
     const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'free_bots', 'd_circles', 'analysis_tool', 'chart', 'analysis', 'tutorial', 'copy_trading'];
+    const hash = ['dashboard', 'bot_builder', 'free_bots', 'd_circles', 'analysis_tool', 'chart', 'analysis', 'tutorial', 'copy_trading', 'market_analyzer'];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -152,7 +153,7 @@ const AppWrapper = observer(() => {
 
     React.useEffect(() => {
         const el_dashboard = document.getElementById('id-dbot-dashboard');
-        const el_tutorial = document.getElementById('id-copy-trading');
+        const el_tutorial = document.getElementById('id-market-analyzer');
 
         const observer_dashboard = new window.IntersectionObserver(
             ([entry]) => {
@@ -181,8 +182,8 @@ const AppWrapper = observer(() => {
                 threshold: 0.5, // set offset 0.1 means trigger if atleast 10% of element in viewport
             }
         );
-        observer_dashboard.observe(el_dashboard);
-        observer_tutorial.observe(el_tutorial);
+        if (el_dashboard) observer_dashboard.observe(el_dashboard);
+        if (el_tutorial) observer_tutorial.observe(el_tutorial);
     });
 
     React.useEffect(() => {
@@ -544,6 +545,26 @@ const AppWrapper = observer(() => {
                                 id='id-copy-trading'
                             >
                                 <CopyTrading />
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <LabelPairedChartCandlestickCaptionRegularIcon
+                                            height='24px'
+                                            width='24px'
+                                            fill='var(--text-general)'
+                                        />
+                                        <Localize i18n_default_text='Market Analyzer' />
+                                    </>
+                                }
+                                id='id-market-analyzer'
+                            >
+                                <iframe
+                                    src='https://bot-analysis-tool-belex.web.app'
+                                    title='Market Analyzer'
+                                    style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                                    allow='clipboard-read; clipboard-write'
+                                />
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
