@@ -73,6 +73,22 @@ const FREE_BOTS = [
         difficulty: 'Advanced',
     },
     {
+        id: 'frosty_digit_alter',
+        xml_file: 'frosty_digit_alter',
+        name: 'Frosty Digit Alter',
+        description: 'A dual over-digit strategy that alternates between two configurable over-digit targets, with martingale recovery and take-profit/stop-loss controls.',
+        category: 'Advanced Bots' as BotCategory,
+        difficulty: 'Advanced',
+    },
+    {
+        id: 'frosty_tech_space_v2',
+        xml_file: 'frosty_tech_space_v2',
+        name: 'Frosty Tech Space V2',
+        description: 'An upgraded Tech Space strategy with refined tick-based entry logic, configurable stake, take-profit, and stop-loss for improved performance.',
+        category: 'Advanced Bots' as BotCategory,
+        difficulty: 'Advanced',
+    },
+    {
         id: 'dominator_v2',
         xml_file: 'dominator_v2',
         name: 'Dominator V2',
