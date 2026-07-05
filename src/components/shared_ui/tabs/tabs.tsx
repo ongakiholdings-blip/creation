@@ -70,11 +70,13 @@ const Tabs = ({
     };
 
     const setActiveLineStyle = React.useCallback(() => {
-        const tabs_wrapper_bounds = tabs_wrapper_ref?.current?.getBoundingClientRect();
-        const active_tab_bounds = active_tab_ref?.current?.getBoundingClientRect();
-        if (tabs_wrapper_bounds && active_tab_bounds) {
+        const active_tab_el = active_tab_ref?.current;
+        const active_tab_bounds = active_tab_el?.getBoundingClientRect();
+        if (active_tab_el && active_tab_bounds) {
+            // Use offsetLeft (relative to parent ul, scroll-invariant) so the
+            // underline stays correct even when the tab list is scrolled horizontally.
             updateActiveLineStyle({
-                left: active_tab_bounds.left - tabs_wrapper_bounds.left,
+                left: active_tab_el.offsetLeft,
                 width: active_tab_bounds.width,
             });
         } else {
