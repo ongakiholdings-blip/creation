@@ -3,11 +3,15 @@
  *
  * Detects when a marketing CR account (see src/utils/marketing-balance.ts) is
  * present in the account list, then:
- *   - Initialises the custom virtual balance in localStorage.
- *   - Subscribes to live Deriv WebSocket balance messages so trade P&L is
- *     reflected in real-time on the display balance.
- *   - Exposes a resetDemoBalance() that snaps the display balance back to the
+ *   - Immediately activates the custom display balance (keyed on the CR loginid).
+ *   - Optionally subscribes to live Deriv WebSocket balance messages from the
+ *     demo account so trade P&L is reflected in real-time.
+ *   - Exposes a resetBalance() that snaps the display balance back to the
  *     configured default (e.g. 258.23 USD).
+ *
+ * The demo account is NOT required for activation — the marketing balance
+ * shows on the CR account as soon as the CR account appears in the list.
+ * If a demo account is also present its balance deltas are tracked and applied.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,19 +31,19 @@ import {
 export interface UseMarketingBalanceReturn {
     /** True when a marketing CR account is detected in the account list. */
     isMarketingActive: boolean;
-    /** The VRTC/demo loginid associated with the marketing CR account. */
-    marketingDemoLoginid: string | null;
-    /** The CR loginid of the marketing account. */
+    /** The CR loginid of the marketing account. null when not active. */
     marketingCRLoginid: string | null;
+    /** The VRTC/demo loginid, if one is present in the session. null otherwise. */
+    marketingDemoLoginid: string | null;
     /**
-     * The current tracked display balance.  null until the account list has
-     * been populated and the demo account identified.
+     * The current tracked display balance. null until the CR account has been
+     * identified and the balance initialised.
      */
     marketingBalance: number | null;
     /** Configured default balance (e.g. 258.23). */
     defaultBalance: number;
     /** Resets the display balance to the configured default. */
-    resetDemoBalance: () => void;
+    resetBalance: () => void;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -48,73 +52,69 @@ export function useMarketingBalance(
     accountList: TAuthData['account_list']
 ): UseMarketingBalanceReturn {
     const [marketingBalance, setMarketingBalance] = useState<number | null>(null);
-    const [marketingDemoLoginid, setMarketingDemoLoginid] = useState<string | null>(null);
     const [marketingCRLoginid, setMarketingCRLoginid] = useState<string | null>(null);
+    const [marketingDemoLoginid, setMarketingDemoLoginid] = useState<string | null>(null);
 
-    // Stable refs so the WebSocket callback always has the latest loginids.
-    const demoLidRef = useRef<string | null>(null);
+    // Stable refs so the WebSocket callback always has the latest values.
     const crLidRef = useRef<string | null>(null);
-    // Tracks the most-recently-seen Deriv balance so we can reset against it.
+    const demoLidRef = useRef<string | null>(null);
+    // Most-recently-seen Deriv demo balance — used as the reset reference point.
     const lastDerivBalanceRef = useRef<number>(0);
 
-    // ── 1. Detect marketing account in account list ───────────────────────────
+    // ── 1. Detect marketing CR account in the account list ────────────────────
 
     useEffect(() => {
-        // Always clear state first — handles logout / empty-list transitions.
+        // Always clear state — handles logout / session change transitions.
         if (!accountList?.length) {
-            setMarketingDemoLoginid(null);
             setMarketingCRLoginid(null);
+            setMarketingDemoLoginid(null);
             setMarketingBalance(null);
-            demoLidRef.current = null;
             crLidRef.current = null;
+            demoLidRef.current = null;
             return;
         }
 
         const crAccount = accountList.find(a => isMarketingCR(a.loginid));
 
         if (!crAccount) {
-            // No marketing CR in this session — clear any stale state.
-            setMarketingDemoLoginid(null);
+            // No marketing account in this session — clear any stale state.
             setMarketingCRLoginid(null);
+            setMarketingDemoLoginid(null);
             setMarketingBalance(null);
-            demoLidRef.current = null;
             crLidRef.current = null;
+            demoLidRef.current = null;
             return;
         }
 
-        // Find the demo account that belongs to this user's session.
-        // Deriv users normally have exactly one virtual account (VRTC…) per
-        // session.  If somehow more than one demo account is present we use the
-        // first one (standard Deriv behaviour).
-        const demoAccount = accountList.find(a => isDemoAccount(a.loginid));
-        if (!demoAccount) return;
-
         const crLid = crAccount.loginid;
-        const demoLid = demoAccount.loginid;
         crLidRef.current = crLid;
-        demoLidRef.current = demoLid;
         setMarketingCRLoginid(crLid);
+
+        // Demo account is optional — used for delta tracking when present.
+        const demoAccount = accountList.find(a => isDemoAccount(a.loginid));
+        const demoLid = demoAccount?.loginid ?? null;
+        demoLidRef.current = demoLid;
         setMarketingDemoLoginid(demoLid);
 
-        // Derive the current Deriv balance from the account list entry.
+        // Use the demo account's current Deriv balance as the reference point.
+        // Fall back to 0 when no demo account is in the list.
+        const rawBal = demoAccount?.balance;
         const derivBal =
-            typeof demoAccount.balance === 'number'
-                ? demoAccount.balance
-                : parseFloat(String(demoAccount.balance ?? 0)) || 0;
-
+            typeof rawBal === 'number' ? rawBal : parseFloat(String(rawBal ?? 0)) || 0;
         const safeDeriv = isNaN(derivBal) ? 0 : derivBal;
         lastDerivBalanceRef.current = safeDeriv;
 
-        const bal = initMarketingBalance(crLid, demoLid, safeDeriv);
+        // Initialise (or restore from localStorage) the display balance.
+        const bal = initMarketingBalance(crLid, safeDeriv);
         setMarketingBalance(bal);
     }, [accountList]);
 
-    // ── 2. Subscribe to live balance updates from Deriv WebSocket ─────────────
+    // ── 2. Subscribe to live demo balance updates from Deriv WebSocket ────────
 
     useEffect(() => {
-        if (!marketingDemoLoginid) return;
+        // Only subscribe when we have both a CR account and a demo account.
+        if (!marketingCRLoginid || !marketingDemoLoginid) return;
 
-        // api_base.api may not be ready on first render — retry via interval.
         let subscription: { unsubscribe: () => void } | null = null;
 
         const attach = () => {
@@ -125,15 +125,15 @@ export function useMarketingBalance(
 
                     const { balance: newDerivBal, loginid: updateLoginid } = data.balance;
 
-                    // Only handle messages for our demo account.
+                    // Only handle messages for the demo account.
                     if (updateLoginid && updateLoginid !== demoLidRef.current) return;
 
                     lastDerivBalanceRef.current = newDerivBal;
 
-                    const demoLid = demoLidRef.current;
-                    if (!demoLid) return;
+                    const crLid = crLidRef.current;
+                    if (!crLid) return;
 
-                    const newDisplay = applyDerivUpdate(demoLid, newDerivBal);
+                    const newDisplay = applyDerivUpdate(crLid, newDerivBal);
                     if (newDisplay !== null) {
                         setMarketingBalance(newDisplay);
                     }
@@ -158,16 +158,15 @@ export function useMarketingBalance(
         return () => {
             subscription?.unsubscribe();
         };
-    }, [marketingDemoLoginid]);
+    }, [marketingCRLoginid, marketingDemoLoginid]);
 
     // ── 3. Reset handler ──────────────────────────────────────────────────────
 
-    const resetDemoBalance = useCallback(() => {
-        const demoLid = demoLidRef.current;
+    const resetBalance = useCallback(() => {
         const crLid = crLidRef.current;
-        if (!demoLid || !crLid) return;
+        if (!crLid) return;
 
-        const newBal = resetMarketingBalance(crLid, demoLid, lastDerivBalanceRef.current);
+        const newBal = resetMarketingBalance(crLid, lastDerivBalanceRef.current);
         setMarketingBalance(newBal);
     }, []);
 
@@ -178,10 +177,10 @@ export function useMarketingBalance(
 
     return {
         isMarketingActive,
-        marketingDemoLoginid,
         marketingCRLoginid,
+        marketingDemoLoginid,
         marketingBalance,
         defaultBalance,
-        resetDemoBalance,
+        resetBalance,
     };
 }

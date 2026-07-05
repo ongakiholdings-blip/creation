@@ -26,7 +26,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
         marketingDemoLoginid,
         marketingBalance,
         defaultBalance,
-        resetDemoBalance,
+        resetBalance,
     } = useMarketingBalance(accountList);
 
     const is_bot_running = run_panel?.is_running || api_base.is_running;
@@ -220,7 +220,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                                     className='acc-dropdown__reset-btn'
                                     onClick={e => {
                                         e.stopPropagation();
-                                        resetDemoBalance();
+                                        resetBalance();
                                     }}
                                     title={`Reset demo balance to ${defaultBalance} USD`}
                                 >
