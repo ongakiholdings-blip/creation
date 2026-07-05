@@ -23,6 +23,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     const {
         isMarketingActive,
         marketingCRLoginid,
+        marketingDemoLoginid,
         marketingBalance,
         defaultBalance,
         resetDemoBalance,
@@ -212,8 +213,8 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                                 </Text>
                             </div>
 
-                            {/* Reset button — only shown for the marketing CR (real) account */}
-                            {isMarketingActive && !account.isVirtual && account.loginid === marketingCRLoginid && (
+                            {/* Reset button — shown on the demo account row (source of P&L) */}
+                            {isMarketingActive && account.isVirtual && account.loginid === marketingDemoLoginid && (
                                 <button
                                     type='button'
                                     className='acc-dropdown__reset-btn'
