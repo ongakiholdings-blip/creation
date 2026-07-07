@@ -33,6 +33,7 @@ export type ScanResult = {
     tradeType: string;
     percentage: string;
     digitCounts: number[];
+    entryPoint?: number;  // last digit that most often precedes a winning tick (over/under only)
 };
 
 export type ScanProgress = {
@@ -52,6 +53,52 @@ function buildDigitCounts(digits: number[]): number[] {
     const counts = new Array(10).fill(0);
     digits.forEach(d => counts[d]++);
     return counts;
+}
+
+/**
+ * Finds the entry-point digit — the last digit that, when observed, most often
+ * precedes a winning tick for the given trade type.
+ *
+ * Uses a transition-frequency approach: for every consecutive pair (current, next)
+ * in the tick history, counts how often each current digit leads to a winning next
+ * digit.  The digit with the highest conditional win probability is the entry point.
+ * Ties are broken in favour of the digit with the most observations.
+ */
+function computeEntryPoint(digits: number[], tradeType: string): number {
+    // Parse win condition from tradeType ("Over 1", "Under 8", etc.)
+    const m = tradeType.trim().match(/^(Over|Under)\s+(\d+)$/i);
+    if (!m || digits.length < 2) return 0;
+
+    const threshold = parseInt(m[2], 10);
+    const isWin = m[1].toLowerCase() === 'over'
+        ? (d: number) => d > threshold
+        : (d: number) => d < threshold;
+
+    const winCount  = new Array(10).fill(0);
+    const totalCount = new Array(10).fill(0);
+
+    for (let i = 0; i < digits.length - 1; i++) {
+        const cur  = digits[i];
+        const next = digits[i + 1];
+        totalCount[cur]++;
+        if (isWin(next)) winCount[cur]++;
+    }
+
+    let bestDigit = 0;
+    let bestProb  = -1;
+    let bestObs   = 0;
+
+    for (let d = 0; d < 10; d++) {
+        if (totalCount[d] === 0) continue;
+        const prob = winCount[d] / totalCount[d];
+        if (prob > bestProb || (prob === bestProb && totalCount[d] > bestObs)) {
+            bestProb  = prob;
+            bestDigit = d;
+            bestObs   = totalCount[d];
+        }
+    }
+
+    return bestDigit;
 }
 
 function scoreMarket(
@@ -196,8 +243,13 @@ export async function scanMarkets(
                 const digits = prices.map(p => getLastDigit(p));
                 const { score, tradeType, percentage } = scoreMarket(digits, strategy);
                 const digitCounts = buildDigitCounts(digits);
+                // Entry-point analysis only applies to Over/Under strategies;
+                // Even/Odd has no single trigger digit.
+                const entryPoint = strategy !== 'evenodd'
+                    ? computeEntryPoint(digits, tradeType)
+                    : undefined;
 
-                results.push({ symbol, name, score, tradeType, percentage, digitCounts });
+                results.push({ symbol, name, score, tradeType, percentage, digitCounts, entryPoint });
             } catch (err) {
                 // eslint-disable-next-line no-console
                 console.warn(`[AiScanner] Failed to fetch ${symbol}:`, err);

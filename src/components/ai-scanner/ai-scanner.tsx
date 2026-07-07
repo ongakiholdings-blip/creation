@@ -92,7 +92,8 @@ type InjectOpts = {
     takeProfit: number;
     stopLoss: number;
     predictionDigit?: number;  // over/under only
-    tradeType?: string;        // even/odd only ("Even" | "Odd")
+    tradeType?: string;        // scanner-determined direction ("Over 1", "Under 8", "Even", "Odd")
+    entryPoint?: number;       // digit the bot waits for before triggering a trade
 };
 
 function injectOverUnderParams(xml: string, opts: InjectOpts): string {
@@ -118,6 +119,10 @@ function injectOverUnderParams(xml: string, opts: InjectOpts): string {
     // VAR id: a6O1@UOPwLx_RSp+20T$  (prediction digit)
     if (digit !== undefined) {
         xml = replaceVarInit(xml, 'a6O1@UOPwLx_RSp+20T$', digit);
+    }
+    // VAR id: e.`,j$8^KyE-2P_|[+x8  (ENTRY POINT — digit the bot watches before trading)
+    if (opts.entryPoint !== undefined) {
+        xml = replaceVarInit(xml, 'e.`,j$8^KyE-2P_|[+x8', opts.entryPoint);
     }
     // Flip ALL PURCHASE_LIST fields (the XML has 3 occurrences, all DIGITOVER by default)
     xml = xml.replace(/(<field name="PURCHASE_LIST">)DIGIT(?:OVER|UNDER)/g, `$1${purchase}`);
@@ -223,6 +228,11 @@ const AiScanner = () => {
     // Show exactly what the scanner determined — "Over 1"/"Under 8" for digits
     // strategies, "Even"/"Odd" for the even-odd strategy.
     const aiPrediction = scanState === 'done' && bestResult ? bestResult.tradeType : '—';
+    // Entry point: the digit the bot waits to see before triggering a trade
+    // Entry point only exists for Over/Under strategies; show — for Even/Odd.
+    const aiEntryPoint  = scanState === 'done' && bestResult && bestResult.entryPoint !== undefined
+        ? String(bestResult.entryPoint)
+        : '—';
 
     const progressPct =
         progress && progress.total > 0 ? Math.round(((progress.index + 1) / progress.total) * 100) : 0;
@@ -285,6 +295,7 @@ const AiScanner = () => {
             stopLoss,
             predictionDigit: strategy.predictionDigit ?? undefined,
             tradeType: bestResult.tradeType,
+            entryPoint: bestResult.entryPoint,
         };
 
         block_string = strategy.id === 'evenodd'
@@ -482,6 +493,10 @@ const AiScanner = () => {
                             <div className='ai-scanner-modal__field'>
                                 <label>PREDICTION</label>
                                 <span className={scanState === 'done' && bestResult ? 'ai-scanner-modal__field-value--ai' : ''}>{aiPrediction}</span>
+                            </div>
+                            <div className='ai-scanner-modal__field'>
+                                <label>ENTRY POINT</label>
+                                <span className={scanState === 'done' && bestResult ? 'ai-scanner-modal__field-value--ai' : ''} title='Last digit the bot waits for before placing a trade'>{aiEntryPoint}</span>
                             </div>
                         </div>
 
