@@ -97,10 +97,31 @@ type InjectOpts = {
 
 function injectOverUnderParams(xml: string, opts: InjectOpts): string {
     xml = xml.replace(/(<field name="SYMBOL_LIST">)[^<]+/, `$1${opts.symbol}`);
-    if (opts.predictionDigit !== undefined) {
-        // VAR id: a6O1@UOPwLx_RSp+20T$  (prediction)
-        xml = replaceVarInit(xml, 'a6O1@UOPwLx_RSp+20T$', opts.predictionDigit);
+
+    // Resolve digit and purchase direction from the scanner's tradeType string
+    // (e.g. "Over 1" → digit=1, DIGITOVER; "Under 8" → digit=8, DIGITUNDER).
+    // Previously the bot always loaded with the strategy's fixed predictionDigit
+    // and DIGITOVER, ignoring what the scanner actually determined.
+    let digit = opts.predictionDigit;
+    let purchase = 'DIGITOVER';
+    if (opts.tradeType) {
+        const m = opts.tradeType.trim().match(/^(Over|Under)\s+(\d+)$/i);
+        if (m) {
+            digit = parseInt(m[2], 10);
+            purchase = m[1].toLowerCase() === 'under' ? 'DIGITUNDER' : 'DIGITOVER';
+        } else {
+            // eslint-disable-next-line no-console
+            console.warn(`[AiScanner] Could not parse tradeType "${opts.tradeType}" — falling back to default digit/direction.`);
+        }
     }
+
+    // VAR id: a6O1@UOPwLx_RSp+20T$  (prediction digit)
+    if (digit !== undefined) {
+        xml = replaceVarInit(xml, 'a6O1@UOPwLx_RSp+20T$', digit);
+    }
+    // Flip ALL PURCHASE_LIST fields (the XML has 3 occurrences, all DIGITOVER by default)
+    xml = xml.replace(/(<field name="PURCHASE_LIST">)DIGIT(?:OVER|UNDER)/g, `$1${purchase}`);
+
     // VAR id: 9dQ4tsj$@`vWpu;:2{K=  (STAKE)
     xml = replaceVarInit(xml, '9dQ4tsj$@`vWpu;:2{K=', opts.stake);
     // VAR id: /D.KK%;1:%C[vPyr}FX9  (MARTINGALE)
@@ -199,13 +220,9 @@ const AiScanner = () => {
     // "Digits" is the Deriv trade-type category for both bot types
     const aiTradeType = scanState === 'done' && bestResult ? strategy.tradeTypeName : '—';
     const aiContractType = scanState === 'done' && bestResult ? strategy.contractType : '—';
-    // For over/under the bot always starts on the "over" digit (e.g. Over 2);
-    // for even/odd the scanner determines direction (Even or Odd).
-    const aiPrediction = scanState === 'done' && bestResult
-        ? strategy.id === 'evenodd'
-            ? bestResult.tradeType               // 'Even' or 'Odd'
-            : `Over ${strategy.predictionDigit}` // matches what's injected
-        : '—';
+    // Show exactly what the scanner determined — "Over 1"/"Under 8" for digits
+    // strategies, "Even"/"Odd" for the even-odd strategy.
+    const aiPrediction = scanState === 'done' && bestResult ? bestResult.tradeType : '—';
 
     const progressPct =
         progress && progress.total > 0 ? Math.round(((progress.index + 1) / progress.total) * 100) : 0;

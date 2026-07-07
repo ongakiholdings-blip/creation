@@ -63,31 +63,40 @@ function scoreMarket(
 
     switch (strategy) {
         case 'over1under8': {
-            const count = digits.filter(d => d > 1).length;
-            const score = count / total;
-            return {
-                score,
-                tradeType: score >= 0.5 ? 'Over 1' : 'Under 8',
-                percentage: `${(score * 100).toFixed(1)}%`,
-            };
+            // Score each side independently: Over 1 wins when digit > 1 (baseline 80%),
+            // Under 8 wins when digit < 8 (baseline 80%).  They overlap heavily (digits
+            // 2–7 satisfy both), so a negative deviation on the Over side does NOT imply
+            // a positive edge on the Under side — compute both and pick the stronger one.
+            const overRate  = digits.filter(d => d > 1).length / total;
+            const underRate = digits.filter(d => d < 8).length / total;
+            const overEdge  = overRate  - 0.8;
+            const underEdge = underRate - 0.8;
+            if (overEdge >= underEdge) {
+                return { score: Math.abs(overEdge),  tradeType: 'Over 1',  percentage: `${(overRate  * 100).toFixed(1)}%` };
+            }
+            return { score: Math.abs(underEdge), tradeType: 'Under 8', percentage: `${(underRate * 100).toFixed(1)}%` };
         }
         case 'over2under7': {
-            const count = digits.filter(d => d > 2).length;
-            const score = count / total;
-            return {
-                score,
-                tradeType: score >= 0.5 ? 'Over 2' : 'Under 7',
-                percentage: `${(score * 100).toFixed(1)}%`,
-            };
+            // Over 2: digit > 2 (baseline 70%).  Under 7: digit < 7 (baseline 70%).
+            const overRate  = digits.filter(d => d > 2).length / total;
+            const underRate = digits.filter(d => d < 7).length / total;
+            const overEdge  = overRate  - 0.7;
+            const underEdge = underRate - 0.7;
+            if (overEdge >= underEdge) {
+                return { score: Math.abs(overEdge),  tradeType: 'Over 2',  percentage: `${(overRate  * 100).toFixed(1)}%` };
+            }
+            return { score: Math.abs(underEdge), tradeType: 'Under 7', percentage: `${(underRate * 100).toFixed(1)}%` };
         }
         case 'over3under6': {
-            const count = digits.filter(d => d > 3).length;
-            const score = count / total;
-            return {
-                score,
-                tradeType: score >= 0.5 ? 'Over 3' : 'Under 6',
-                percentage: `${(score * 100).toFixed(1)}%`,
-            };
+            // Over 3: digit > 3 (baseline 60%).  Under 6: digit < 6 (baseline 60%).
+            const overRate  = digits.filter(d => d > 3).length / total;
+            const underRate = digits.filter(d => d < 6).length / total;
+            const overEdge  = overRate  - 0.6;
+            const underEdge = underRate - 0.6;
+            if (overEdge >= underEdge) {
+                return { score: Math.abs(overEdge),  tradeType: 'Over 3',  percentage: `${(overRate  * 100).toFixed(1)}%` };
+            }
+            return { score: Math.abs(underEdge), tradeType: 'Under 6', percentage: `${(underRate * 100).toFixed(1)}%` };
         }
         case 'evenodd': {
             const evenCount = digits.filter(d => d % 2 === 0).length;
