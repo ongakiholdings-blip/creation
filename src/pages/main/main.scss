@@ -128,9 +128,7 @@
                 }
 
                 &--border-bottom {
-                    @include mobile-or-tablet-screen {
-                        border-bottom: 0;
-                    }
+                    border-bottom: 0;
                 }
             }
 
