@@ -3,6 +3,7 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
 import { useLocation, useNavigate } from 'react-router-dom';
+import DCirclesModal from '@/components/d-circles/d-circles-modal';
 import ChunkLoader from '@/components/loader/chunk-loader';
 import { generateOAuthURL } from '@/components/shared';
 import DesktopWrapper from '@/components/shared_ui/desktop-wrapper';
@@ -590,6 +591,7 @@ const AppWrapper = observer(() => {
                 </div>
                 <ChartModal />
                 <TradingViewModal />
+                <DCirclesModal />
             </DesktopWrapper>
             <MobileWrapper>{!is_open && <RunPanel />}</MobileWrapper>
             <Dialog
