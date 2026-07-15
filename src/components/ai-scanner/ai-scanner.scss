@@ -81,10 +81,10 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        // counter-rotate so text stays upright while the border spins
+        // Continuous full-circle spin, on its own axis, independent of the bounce
         animation:
-            ai-counter-spin 3s linear infinite,
-            ai-text-glow    2.2s ease-in-out infinite alternate;
+            ai-text-spin 1.6s linear infinite,
+            ai-text-glow 2.2s ease-in-out infinite alternate;
     }
 
     &:active { cursor: grabbing; }
@@ -150,10 +150,10 @@
     82%       { transform: translateY(-3px)  scale(1.01); }
 }
 
-// Counter-spin keeps the "AI" label upright
-@keyframes ai-counter-spin {
+// Spins the "AI" label in place, on its own axis
+@keyframes ai-text-spin {
     from { transform: rotate(0deg);   }
-    to   { transform: rotate(360deg); } // same speed as ai-ring-spin but same dir = net 0
+    to   { transform: rotate(360deg); }
 }
 
 // Gold text glow pulse
