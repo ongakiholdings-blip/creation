@@ -22,6 +22,7 @@ import { useDevice } from '@deriv-com/ui';
 /* [AI] - Analytics event tracking removed - see migrate-docs/MONITORING_PACKAGES.md for re-implementation guide */
 /* [/AI] */
 import DashboardBotList from './bot-list/dashboard-bot-list';
+import FeatureShowcase from './feature-showcase';
 
 type TCardProps = {
     has_dashboard_strategies: boolean;
@@ -177,11 +178,12 @@ const Cards = observer(({ is_mobile, has_dashboard_strategies }: TCardProps) => 
                         </MobileFullPageModal>
                     )}
                 </div>
+                {!isDesktop && <FeatureShowcase />}
                 <DashboardBotList />
             </div>
         ),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [is_dialog_open, has_dashboard_strategies, is_google_drive_configured]
+        [is_dialog_open, has_dashboard_strategies, is_google_drive_configured, isDesktop]
     );
 });
 
