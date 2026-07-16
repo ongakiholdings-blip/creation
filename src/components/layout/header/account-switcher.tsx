@@ -129,7 +129,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                     aria-expanded={showChevron ? isOpen : undefined}
                     aria-haspopup={showChevron ? 'listbox' : undefined}
                     className={classNames('acc-info', {
-                        'acc-info--is-virtual': isVirtual,
+                        'acc-info--is-virtual': isVirtual && !isActiveAccountMarketingCR,
                         'acc-info--interactive': showChevron,
                     })}
                     onClick={toggleDropdown}
@@ -144,7 +144,9 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                     <div className='acc-info__content'>
                         <div className='acc-info__account-type-header'>
                             <Text as='p' size='xs' className='acc-info__account-type'>
-                                {isVirtual ? (
+                                {isActiveAccountMarketingCR ? (
+                                    <Localize i18n_default_text='Real account' />
+                                ) : isVirtual ? (
                                     <Localize i18n_default_text='Demo account' />
                                 ) : (
                                     <Localize i18n_default_text='Real account' />
